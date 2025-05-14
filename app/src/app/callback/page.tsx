@@ -11,25 +11,32 @@ function CallbackContent() {
   const { setToken } = useAuth();
   
   useEffect(() => {
+    console.log("Callback page mounted");
     const code = searchParams.get('code');
+    console.log("Authorization code present:", code ? "Yes" : "No");
     
     if (!code) {
+      console.error("No code found in URL parameters");
       setError('No authorization code received');
       return;
     }
     
     const exchangeCodeForToken = async () => {
       try {
+        console.log("Exchanging code for token...");
         // Utiliser notre propre API route pour éviter les problèmes CORS
         const response = await fetch(`/api/auth/callback?code=${code}`);
         
         if (!response.ok) {
           const errorData = await response.text();
+          console.error(`Token exchange failed with status ${response.status}:`, errorData);
           throw new Error(`Failed to get access token: ${errorData}`);
         }
         
         const tokenData = await response.json();
+        console.log("Token received successfully");
         setToken(tokenData.access_token);
+        console.log("Token set in auth context, redirecting to home page");
         
         // Redirect to the home page
         router.push('/');
