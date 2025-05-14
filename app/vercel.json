@@ -1,0 +1,17 @@
+{
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "outputDirectory": ".next",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ],
+  "env": {
+    "SUPABASE_URL": "",
+    "SUPABASE_KEY": "",
+    "REDIRECT_URI": "",
+    "CLIENT_ID": "",
+    "CLIENT_SECRET": ""
+  }
+} 
