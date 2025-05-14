@@ -3,7 +3,7 @@ name: PNJ Data Update Cron
 on:
   schedule:
     # Exécute toutes les 5 minutes
-    - cron: '*/5 * * * *'
+    - cron: '* * * * *'
   workflow_dispatch:  # Permet également un déclenchement manuel
 
 jobs:
