@@ -1,25 +1,28 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import { AuthProvider } from "@/contexts/AuthContext";
+import './globals.css';
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { LocationsProvider } from '@/contexts/LocationsContext';
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "42 AMI - Seating Map",
-  description: "Real-time seating map for 42 campus",
+  title: '42 Seating Map',
+  description: 'A visual map of 42 campus seating',
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
-          {children}
+          <LocationsProvider>
+            {children}
+          </LocationsProvider>
         </AuthProvider>
       </body>
     </html>

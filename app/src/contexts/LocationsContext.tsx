@@ -1,10 +1,8 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { LocationType } from '@/types/types';
 import { useAuth } from './AuthContext';
-import { fetchLocations } from '@/lib/api42';
 
 interface LocationsContextType {
   locations: LocationType[];
@@ -12,84 +10,84 @@ interface LocationsContextType {
   error: string | null;
   campusId: number;
   setCampusId: (id: number) => void;
+  refreshLocations: () => void;
 }
 
-const LocationsContext = createContext<LocationsContextType | undefined>(undefined);
+const LocationsContext = createContext<LocationsContextType>({
+  locations: [],
+  loading: false,
+  error: null,
+  campusId: 1,
+  setCampusId: () => {},
+  refreshLocations: () => {}
+});
 
 export function LocationsProvider({ children }: { children: ReactNode }) {
   const [locations, setLocations] = useState<LocationType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [campusId, setCampusId] = useState(1);
-  const { accessToken } = useAuth();
+  const { isAuthenticated } = useAuth();
 
-  // Load initial data and subscribe to Supabase Realtime
-  useEffect(() => {
-    if (!accessToken) return;
-
-    const loadInitialData = async () => {
-      setLoading(true);
-      setError(null);
+  // Fonction pour actualiser les données avec useCallback
+  const refreshLocations = useCallback(async () => {
+    if (!isAuthenticated) {
+      console.log('Not authenticated, skipping location refresh');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Refreshing locations for campus', campusId);
+      const data = await fetch(`/api/locations?campusId=${campusId}`);
       
-      try {
-        const data = await fetchLocations(accessToken, campusId);
-        setLocations(data);
-      } catch (err) {
-        console.error('Error fetching locations:', err);
-        setError('Failed to load locations. Please try again.');
-      } finally {
-        setLoading(false);
+      if (!data.ok) {
+        const errorText = await data.text();
+        console.error(`Error fetching locations: ${data.status} - ${errorText}`);
+        throw new Error(`Erreur lors de la récupération des données: ${data.status} - ${errorText}`);
       }
-    };
+      
+      const locationsData = await data.json();
+      
+      if (!locationsData || (Array.isArray(locationsData) && locationsData.length === 0)) {
+        console.warn('No locations data returned from API');
+      } else {
+        console.log(`Received ${Array.isArray(locationsData) ? locationsData.length : 'non-array'} locations`);
+      }
+      
+      if (locationsData.error) {
+        throw new Error(`API error: ${locationsData.error} - ${locationsData.details || ''}`);
+      }
+      
+      setLocations(Array.isArray(locationsData) ? locationsData : []);
+    } catch (err) {
+      console.error('Erreur lors du chargement des emplacements:', err);
+      setError(`Impossible de charger les emplacements. ${err instanceof Error ? err.message : 'Veuillez réessayer.'}`);
+      // En cas d'erreur, on garde les anciennes données
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, campusId]);
 
-    loadInitialData();
-
-    // Subscribe to real-time updates from Supabase
-    const subscription = supabase
-      .channel('locations')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'locations',
-        filter: `campus_id=eq.${campusId}` 
-      }, (payload) => {
-        // Handle real-time updates
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          const newLocation = payload.new as LocationType;
-          
-          setLocations(current => {
-            // Update or add the location
-            const index = current.findIndex(loc => 
-              loc.host === newLocation.host && 
-              loc.user?.login === newLocation.user?.login
-            );
-            
-            if (index >= 0) {
-              const updated = [...current];
-              updated[index] = newLocation;
-              return updated;
-            } else {
-              return [...current, newLocation];
-            }
-          });
-        } else if (payload.eventType === 'DELETE') {
-          const deletedLocation = payload.old as LocationType;
-          
-          setLocations(current => 
-            current.filter(loc => 
-              loc.host !== deletedLocation.host || 
-              loc.user?.login !== deletedLocation.user?.login
-            )
-          );
-        }
-      })
-      .subscribe();
-
-    // Cleanup on unmount
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [accessToken, campusId]);
+  // Charger les données lors du montage du composant et lors du changement de campus
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('Loading locations due to auth state change or campus change');
+      refreshLocations();
+    }
+    
+    // Rafraîchir les données toutes les 30 secondes
+    const interval = setInterval(() => {
+      if (isAuthenticated) {
+        console.log('Auto-refreshing locations');
+        refreshLocations();
+      }
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [isAuthenticated, campusId, refreshLocations]);
 
   return (
     <LocationsContext.Provider
@@ -98,7 +96,8 @@ export function LocationsProvider({ children }: { children: ReactNode }) {
         loading,
         error,
         campusId,
-        setCampusId
+        setCampusId,
+        refreshLocations
       }}
     >
       {children}
@@ -108,7 +107,7 @@ export function LocationsProvider({ children }: { children: ReactNode }) {
 
 export function useLocations() {
   const context = useContext(LocationsContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useLocations must be used within a LocationsProvider');
   }
   return context;
