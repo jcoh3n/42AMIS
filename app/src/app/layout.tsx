@@ -6,7 +6,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "42 Seating Map",
+  title: "42 AMI - Seating Map",
   description: "Real-time seating map for 42 campus",
 };
 
