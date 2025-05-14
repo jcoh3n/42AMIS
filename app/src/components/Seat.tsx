@@ -2,6 +2,7 @@
 
 import { SeatType } from '@/types/types';
 import { useState } from 'react';
+import Image from 'next/image';
 
 interface SeatProps {
   seat: SeatType;
@@ -26,10 +27,12 @@ export default function Seat({ seat }: SeatProps) {
         onMouseLeave={() => setShowTooltip(false)}
       >
         {seat.isOccupied && seat.user?.image?.versions?.micro ? (
-          <img 
+          <Image 
             src={seat.user.image.versions.micro}
             alt={seat.user.login}
-            className="w-5 h-5 rounded-full"
+            width={20}
+            height={20}
+            className="rounded-full"
           />
         ) : (
           <span className="text-xs">{seat.seat.replace('s', '')}</span>

@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.41.0",
-    "dotenv": "^16.4.5",
+    "@types/node-fetch": "^2.6.12",
+    "dotenv": "^16.5.0",
     "next": "latest",
     "node-fetch": "^3.3.2",
     "react": "latest",

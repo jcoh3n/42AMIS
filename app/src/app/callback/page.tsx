@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getAccessToken } from '@/lib/api42';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function Callback() {
+function CallbackContent() {
   const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -57,5 +57,22 @@ export default function Callback() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function Callback() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="p-6 bg-white rounded-lg shadow-md">
+          <div>
+            <h1 className="text-xl font-bold mb-4">Loading...</h1>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          </div>
+        </div>
+      </div>
+    }>
+      <CallbackContent />
+    </Suspense>
   );
 } 

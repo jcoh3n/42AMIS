@@ -119,7 +119,7 @@ async function fetchLocations(token: string, campusId: number) {
 }
 
 // Function to update Supabase with location data
-async function updateSupabaseLocations(campusId: number, locations: any[]) {
+async function updateSupabaseLocations(campusId: number, locations: Record<string, any>[]) {
   console.log(`Updating Supabase with ${locations.length} locations for campus ${campusId}...`);
 
   try {

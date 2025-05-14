@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { campusLayout } from '@/data/campusLayout';
-import { LocationType, SeatType } from '@/types/types';
+import { SeatType } from '@/types/types';
 import Seat from './Seat';
 import { useLocations } from '@/contexts/LocationsContext';
 
