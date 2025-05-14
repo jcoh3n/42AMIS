@@ -8,7 +8,15 @@ load_dotenv()
 
 API_URL = 'https://api.intra.42.fr/v2'
 TOKEN_URL = 'https://api.intra.42.fr/oauth/token' # Added token URL
-DATABASE_FILE = 'local_cache.sqlite'
+
+# Check if we're running on Vercel
+VERCEL_ENV = os.environ.get('VERCEL_ENV')
+IS_VERCEL = VERCEL_ENV is not None
+
+# For Vercel, use /tmp for database since the filesystem is read-only except for /tmp
+DATABASE_FILE = '/tmp/local_cache.sqlite' if IS_VERCEL else 'local_cache.sqlite'
+print(f"Updater: Using database file: {DATABASE_FILE}")
+
 CAMPUSES_TO_UPDATE = [1]
 ACCESS_TOKEN = None
 

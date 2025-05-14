@@ -245,6 +245,14 @@ def cron_update():
         # Get campus_id from request or default to update all main campuses
         campus_id = request.args.get('campus_id')
         
+        # Import updater functions
+        from updater import get_access_token, update_campus_locations
+        
+        # Get access token for 42 API
+        access_token = get_access_token()
+        if not access_token:
+            return jsonify({"status": "error", "message": "Failed to get access token"}), 500
+        
         # Update all main campuses if no specific campus specified
         if not campus_id:
             campuses = [1, 7, 21]  # Paris, Brussels, Lausanne
@@ -252,10 +260,9 @@ def cron_update():
             
             for campus in campuses:
                 try:
-                    # Code to fetch from 42 API and update database would go here
-                    # For now just log that we would update
-                    print(f"[CRON] Updating data for campus_id={campus}")
-                    update_results[f"campus_{campus}"] = "updated"
+                    # Use the update function from updater.py
+                    result = update_campus_locations(campus, access_token)
+                    update_results[f"campus_{campus}"] = "updated" if result else "failed"
                 except Exception as e:
                     update_results[f"campus_{campus}"] = f"error: {str(e)}"
             
@@ -269,10 +276,11 @@ def cron_update():
             campus_id = int(campus_id)
             print(f"[CRON] Updating data for campus_id={campus_id}")
             
-            # Code to fetch from 42 API and update database would go here
+            # Use the update function from updater.py
+            result = update_campus_locations(campus_id, access_token)
             
             return jsonify({
-                "status": "success", 
+                "status": "success" if result else "partial_failure", 
                 "timestamp": time.time(),
                 "campus": campus_id
             })
