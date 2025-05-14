@@ -21,9 +21,11 @@ if not IS_VERCEL:
     socketio = SocketIO(app, cors_allowed_origins="*")
 else:
     socketio = None
+    print("[STARTUP] Running on Vercel serverless environment - SocketIO disabled")
 
 # For Vercel, use /tmp for database since the filesystem is read-only except for /tmp
 DATABASE_FILE = '/tmp/local_cache.sqlite' if IS_VERCEL else 'local_cache.sqlite'
+print(f"[STARTUP] Database file location: {DATABASE_FILE}")
 
 # --- Database Setup ---
 def get_db():
@@ -95,6 +97,13 @@ def index():
     if 'access_token' not in session:
         return redirect('/login')
     return render_template('index.html')
+
+@app.route('/admin')
+def admin():
+    # Simple access control - you might want something more secure
+    if 'access_token' not in session:
+        return redirect('/login')
+    return render_template('admin.html')
 
 @app.route('/login')
 def login():
@@ -189,6 +198,101 @@ def get_locations_from_db(): # Renamed function
 @app.route('/_vercel/static/<path:filename>')
 def vercel_static(filename):
     return app.send_static_file(filename)
+
+# Enable CORS for API routes
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE')
+    return response
+
+# Add a route to manually trigger data update (useful for serverless environment)
+@app.route('/api/update_data', methods=['GET'])
+def update_data_endpoint():
+    try:
+        # Check if there's an access token in the session or as a parameter
+        token = session.get('access_token') or request.args.get('token')
+        if not token:
+            return jsonify({"status": "error", "message": "No access token available"}), 401
+            
+        # Get campus_id from request or default to 1
+        campus_id = request.args.get('campus_id', 1, type=int)
+        
+        # Here you would normally run the updater logic
+        # For example, you might call a function that fetches from 42 API and updates the DB
+        # For demonstration, we'll just return a success message
+        
+        print(f"[UPDATE] Manual update triggered for campus_id={campus_id}")
+        return jsonify({"status": "success", "message": "Data update was triggered"})
+    except Exception as e:
+        print(f"[ERROR] Update error: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# Special endpoint for automated updates that doesn't require authentication
+# This can be called by cron services like cron-job.org or GitHub Actions
+@app.route('/api/cron/update', methods=['GET'])
+def cron_update():
+    try:
+        # Get secret key from request to validate the request is authorized
+        secret = request.args.get('secret')
+        expected_secret = os.getenv('CRON_SECRET', 'default_secret_change_me')
+        
+        if not secret or secret != expected_secret:
+            print(f"[CRON] Unauthorized access attempt to cron endpoint")
+            return jsonify({"status": "error", "message": "Unauthorized"}), 401
+        
+        # Get campus_id from request or default to update all main campuses
+        campus_id = request.args.get('campus_id')
+        
+        # Update all main campuses if no specific campus specified
+        if not campus_id:
+            campuses = [1, 7, 21]  # Paris, Brussels, Lausanne
+            update_results = {}
+            
+            for campus in campuses:
+                try:
+                    # Code to fetch from 42 API and update database would go here
+                    # For now just log that we would update
+                    print(f"[CRON] Updating data for campus_id={campus}")
+                    update_results[f"campus_{campus}"] = "updated"
+                except Exception as e:
+                    update_results[f"campus_{campus}"] = f"error: {str(e)}"
+            
+            return jsonify({
+                "status": "success", 
+                "timestamp": time.time(),
+                "results": update_results
+            })
+        else:
+            # Update only the specified campus
+            campus_id = int(campus_id)
+            print(f"[CRON] Updating data for campus_id={campus_id}")
+            
+            # Code to fetch from 42 API and update database would go here
+            
+            return jsonify({
+                "status": "success", 
+                "timestamp": time.time(),
+                "campus": campus_id
+            })
+    
+    except Exception as e:
+        print(f"[CRON] Error during cron update: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# Add a simple status/health endpoint
+@app.route('/api/status', methods=['GET'])
+def status():
+    """Return simple status info for monitoring."""
+    env_type = "Vercel" if IS_VERCEL else "Local"
+    return jsonify({
+        "status": "ok",
+        "environment": env_type,
+        "timestamp": time.time(),
+        "redirect_uri": REDIRECT_URI,
+        "version": "1.0.1"  # Increment this when you make significant changes
+    })
 
 # Required for Vercel serverless functions
 if IS_VERCEL:

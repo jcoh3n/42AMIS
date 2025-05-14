@@ -1,0 +1,24 @@
+name: PNJ Data Update Cron
+
+on:
+  schedule:
+    # Exécute toutes les 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch:  # Permet également un déclenchement manuel
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Update Paris Data
+        run: |
+          curl -s "https://pnj-pi.vercel.app/api/cron/update?secret=${{ secrets.CRON_SECRET }}&campus_id=1" | jq .
+      
+      - name: Update Brussels Data
+        run: |
+          curl -s "https://pnj-pi.vercel.app/api/cron/update?secret=${{ secrets.CRON_SECRET }}&campus_id=7" | jq .
+      
+      - name: Update Lausanne Data
+        run: |
+          curl -s "https://pnj-pi.vercel.app/api/cron/update?secret=${{ secrets.CRON_SECRET }}&campus_id=21" | jq . 
