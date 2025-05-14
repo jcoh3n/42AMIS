@@ -2,7 +2,6 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getAccessToken } from '@/lib/api42';
 import { useAuth } from '@/contexts/AuthContext';
 
 function CallbackContent() {
@@ -21,16 +20,15 @@ function CallbackContent() {
     
     const exchangeCodeForToken = async () => {
       try {
-        // NOTE: In a production environment, you would handle this exchange on the server-side
-        // We're doing it client-side for simplicity, but this is not secure for a real application
-        // This is where you would use a serverless function or API route
-        const clientSecret = process.env.NEXT_PUBLIC_CLIENT_SECRET;
+        // Utiliser notre propre API route pour éviter les problèmes CORS
+        const response = await fetch(`/api/auth/callback?code=${code}`);
         
-        if (!clientSecret) {
-          throw new Error('Missing NEXT_PUBLIC_CLIENT_SECRET environment variable');
+        if (!response.ok) {
+          const errorData = await response.text();
+          throw new Error(`Failed to get access token: ${errorData}`);
         }
         
-        const tokenData = await getAccessToken(code, clientSecret);
+        const tokenData = await response.json();
         setToken(tokenData.access_token);
         
         // Redirect to the home page
