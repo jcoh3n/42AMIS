@@ -3,8 +3,8 @@ const TOKEN_URL = 'https://api.intra.42.fr/oauth/token';
 const API_URL = 'https://api.intra.42.fr/v2';
 
 export const get42AuthUrl = () => {
-  const clientId = process.env.CLIENT_ID;
-  const redirectUri = process.env.REDIRECT_URI;
+  const clientId = process.env.NEXT_PUBLIC_CLIENT_ID;
+  const redirectUri = process.env.NEXT_PUBLIC_REDIRECT_URI;
   
   if (!clientId || !redirectUri) {
     throw new Error('Missing OAuth configuration');
@@ -14,8 +14,8 @@ export const get42AuthUrl = () => {
 };
 
 export const getAccessToken = async (code: string, clientSecret: string) => {
-  const clientId = process.env.CLIENT_ID;
-  const redirectUri = process.env.REDIRECT_URI;
+  const clientId = process.env.NEXT_PUBLIC_CLIENT_ID;
+  const redirectUri = process.env.NEXT_PUBLIC_REDIRECT_URI;
   
   if (!clientId || !redirectUri) {
     throw new Error('Missing OAuth configuration');

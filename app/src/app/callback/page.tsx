@@ -24,10 +24,10 @@ function CallbackContent() {
         // NOTE: In a production environment, you would handle this exchange on the server-side
         // We're doing it client-side for simplicity, but this is not secure for a real application
         // This is where you would use a serverless function or API route
-        const clientSecret = process.env.CLIENT_SECRET;
+        const clientSecret = process.env.NEXT_PUBLIC_CLIENT_SECRET;
         
         if (!clientSecret) {
-          throw new Error('Missing CLIENT_SECRET environment variable');
+          throw new Error('Missing NEXT_PUBLIC_CLIENT_SECRET environment variable');
         }
         
         const tokenData = await getAccessToken(code, clientSecret);

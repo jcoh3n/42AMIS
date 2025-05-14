@@ -5,10 +5,10 @@
   "framework": "nextjs",
   "outputDirectory": ".next",
   "env": {
-    "SUPABASE_URL": "",
-    "SUPABASE_KEY": "",
-    "REDIRECT_URI": "",
-    "CLIENT_ID": "",
-    "CLIENT_SECRET": ""
+    "NEXT_PUBLIC_SUPABASE_URL": "",
+    "NEXT_PUBLIC_SUPABASE_KEY": "",
+    "NEXT_PUBLIC_REDIRECT_URI": "",
+    "NEXT_PUBLIC_CLIENT_ID": "",
+    "NEXT_PUBLIC_CLIENT_SECRET": ""
   }
 } 
