@@ -151,48 +151,81 @@ def callback():
 def get_locations_from_db(): # Renamed function
     campus_id_filter = request.args.get('campus_id', 1, type=int) # Default to campus 1 if not specified
     
-    # For now, we will implement querying the local DB here.
-    # This function will be called by the frontend.
-    # The actual 42 API calls will be moved to a separate updater script.
-    
-    db = sqlite3.connect(DATABASE_FILE)
-    db.row_factory = sqlite3.Row
-    cursor = db.cursor()
-    
-    # Query the local database
-    # We select distinct user-host pairs based on the latest_api_update for that pair, 
-    # effectively getting the most recent known state for each user at each host.
-    # This still doesn't perfectly emulate "active within X minutes" unless updater script handles that.
-    # A simpler query for now:
-    cursor.execute("""
-        SELECT host, user_login, user_displayname, user_image_micro, campus_id, begin_at 
-        FROM locations 
-        WHERE campus_id = ? 
-        ORDER BY begin_at DESC
-    """, (campus_id_filter,))
-    
-    rows = cursor.fetchall()
-    db.close()
-    
-    # Convert rows to list of dicts to mimic original API response structure (partially)
-    # The frontend expects an array of objects, where each object has user->login, user->displayname etc.
-    # and location->host
-    processed_locations = []
-    for row in rows:
-        processed_locations.append({
-            "host": row["host"],
-            "user": {
-                "login": row["user_login"],
-                "displayname": row["user_displayname"],
-                "image": { "versions": { "micro": row["user_image_micro"] } }
-            },
-            "begin_at": row["begin_at"],
-            "campus_id": row["campus_id"]
-            # Add other fields if your frontend uses them, like end_at, id, primary
-        })
-    
-    print(f"Backend: Returning {len(processed_locations)} locations from DB for campus {campus_id_filter}")
-    return jsonify(processed_locations)
+    try:
+        # For now, we will implement querying the local DB here.
+        # This function will be called by the frontend.
+        # The actual 42 API calls will be moved to a separate updater script.
+        
+        db = sqlite3.connect(DATABASE_FILE)
+        db.row_factory = sqlite3.Row
+        cursor = db.cursor()
+        
+        # First check if we have any data in the table
+        cursor.execute("SELECT COUNT(*) FROM locations WHERE campus_id = ?", (campus_id_filter,))
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            print(f"Backend: No locations found in DB for campus {campus_id_filter}. Trying to update data.")
+            # Try to update data directly if we're missing data (for serverless where cron may not run)
+            try:
+                from updater import get_access_token, update_campus_locations
+                token = get_access_token()
+                if token:
+                    update_campus_locations(campus_id_filter, token)
+                    print(f"Backend: Emergency data update for campus {campus_id_filter} completed.")
+                    # Now try to fetch data again after the update
+                    cursor.execute("""
+                        SELECT host, user_login, user_displayname, user_image_micro, campus_id, begin_at 
+                        FROM locations 
+                        WHERE campus_id = ? 
+                        ORDER BY begin_at DESC
+                    """, (campus_id_filter,))
+                else:
+                    print(f"Backend: Failed to get token for emergency update.")
+            except Exception as e:
+                print(f"Backend Error: Failed to perform emergency data update: {str(e)}")
+        else:
+            # Query the local database
+            cursor.execute("""
+                SELECT host, user_login, user_displayname, user_image_micro, campus_id, begin_at 
+                FROM locations 
+                WHERE campus_id = ? 
+                ORDER BY begin_at DESC
+            """, (campus_id_filter,))
+        
+        rows = cursor.fetchall()
+        db.close()
+        
+        # Convert rows to list of dicts to mimic original API response structure (partially)
+        processed_locations = []
+        for row in rows:
+            processed_locations.append({
+                "host": row["host"],
+                "user": {
+                    "login": row["user_login"],
+                    "displayname": row["user_displayname"],
+                    "image": { "versions": { "micro": row["user_image_micro"] } }
+                },
+                "begin_at": row["begin_at"],
+                "campus_id": row["campus_id"]
+                # Add other fields if your frontend uses them, like end_at, id, primary
+            })
+        
+        print(f"Backend: Returning {len(processed_locations)} locations from DB for campus {campus_id_filter}")
+        
+        # Set Cache-Control header to prevent browser caching
+        response = jsonify(processed_locations)
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+        
+    except sqlite3.Error as e:
+        print(f"Backend Database Error: {str(e)}")
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    except Exception as e:
+        print(f"Backend Server Error: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 # For Vercel serverless deployment
 @app.route('/_vercel/static/<path:filename>')
@@ -301,6 +334,68 @@ def status():
         "redirect_uri": REDIRECT_URI,
         "version": "1.0.1"  # Increment this when you make significant changes
     })
+
+# Add a health check endpoint for debugging
+@app.route('/api/health')
+def health_check():
+    try:
+        # Check if database exists and can be connected to
+        db = sqlite3.connect(DATABASE_FILE)
+        db.row_factory = sqlite3.Row
+        cursor = db.cursor()
+        
+        # Check if locations table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='locations'")
+        table_exists = cursor.fetchone() is not None
+        
+        # Get location counts
+        locations_count = 0
+        if table_exists:
+            cursor.execute("SELECT COUNT(*) FROM locations")
+            locations_count = cursor.fetchone()[0]
+            
+            # Get campus breakdown
+            cursor.execute("SELECT campus_id, COUNT(*) as count FROM locations GROUP BY campus_id")
+            campus_breakdown = {row['campus_id']: row['count'] for row in cursor.fetchall()}
+        else:
+            campus_breakdown = {}
+        
+        db.close()
+        
+        # Version info
+        version_info = {
+            "app_version": "1.0.1",  # Update this as needed
+            "last_updated": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+        }
+        
+        # System info
+        system_info = {
+            "vercel_env": VERCEL_ENV,
+            "is_vercel": IS_VERCEL,
+            "database_file": DATABASE_FILE,
+            "socketio_enabled": socketio is not None
+        }
+        
+        return jsonify({
+            "status": "ok",
+            "database": {
+                "connected": True,
+                "locations_table_exists": table_exists,
+                "locations_count": locations_count,
+                "campus_breakdown": campus_breakdown
+            },
+            "version": version_info,
+            "system": system_info
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "vercel_env": VERCEL_ENV,
+            "is_vercel": IS_VERCEL,
+            "database_file": DATABASE_FILE
+        }), 500
 
 # Required for Vercel serverless functions
 if IS_VERCEL:
