@@ -12,6 +12,7 @@ interface AuthContextType {
   setToken: (token: string) => void;
 }
 
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
