@@ -85,13 +85,10 @@ API_URL = 'https://api.intra.42.fr/v2'
 AUTH_URL = 'https://api.intra.42.fr/oauth/authorize'
 TOKEN_URL = 'https://api.intra.42.fr/oauth/token'
 
-# Set the redirect URI based on environment
-if IS_VERCEL:
-    # Use the Vercel deployment URL
-    REDIRECT_URI = f"https://{os.environ.get('VERCEL_URL')}/callback"
-else:
-    # Local development
-    REDIRECT_URI = 'http://localhost:5000/callback'
+# Use the REDIRECT_URL from .env file
+REDIRECT_URI = os.getenv('REDIRECT_URL', 'http://localhost:5000/callback')
+print(f"[STARTUP] REDIRECT_URI configured as: {REDIRECT_URI}")
+print(f"[STARTUP] Environment variables: REDIRECT_URL={os.getenv('REDIRECT_URL')}, VERCEL_ENV={VERCEL_ENV}")
 
 @app.route('/')
 def index():
@@ -102,6 +99,7 @@ def index():
 @app.route('/login')
 def login():
     auth_url = f"{AUTH_URL}?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&scope=public"
+    print(f"[LOGIN] Redirecting to: {auth_url}")
     return redirect(auth_url)
 
 @app.route('/callback')
@@ -110,10 +108,11 @@ def callback():
     print(f"--- In /callback ---")
     print(f"Received code: {code}")
     print(f"Using CLIENT_ID: {CLIENT_ID}")
-    # Masking client secret for security, ensure it's loaded from env
-    # print(f"Using CLIENT_SECRET: {'*' * len(CLIENT_SECRET) if CLIENT_SECRET else 'None'}") 
     print(f"Using REDIRECT_URI: {REDIRECT_URI}")
-
+    print(f"Callback URL as seen by request: {request.base_url}")
+    print(f"Full request URL: {request.url}")
+    print(f"Request headers: {dict(request.headers)}")
+    
     if not code:
         print("Callback error: No code received from 42 API.")
         return 'Error: No code received', 400
