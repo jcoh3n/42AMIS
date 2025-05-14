@@ -4,9 +4,6 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "outputDirectory": ".next",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
-  ],
   "env": {
     "SUPABASE_URL": "",
     "SUPABASE_KEY": "",
