@@ -1,63 +1,103 @@
-# 42 Seating Map
+# 42AMIS Seating Map
 
-A web application to display and track student seating at 42 campuses.
+A real-time seating map application for 42 campuses that shows occupancy status of workstations using the 42 API.
 
-## Setup for Vercel Deployment
+## Project Structure
 
-### 1. Prerequisites
+This project has been migrated to a modern architecture with:
 
-- A Vercel account
-- The Vercel CLI installed (`npm install -g vercel`)
-- Your 42 API credentials (CLIENT_ID and CLIENT_SECRET)
+- **Frontend**: React/Vite application with Tailwind CSS
+- **Backend**: Python Flask API with SQLite database
+- **Real-time updates**: Socket.IO integration
 
-### 2. Deploy to Vercel
+### Directory Structure
 
-1. Fork or clone this repository
-2. Log in to Vercel CLI:
-   ```
-   vercel login
-   ```
-3. Deploy the project:
-   ```
-   vercel
-   ```
-4. Set up environment variables in the Vercel dashboard:
-   - Go to your project settings
-   - Add the following environment variables:
-     - `CLIENT_ID`: Your 42 API client ID
-     - `CLIENT_SECRET`: Your 42 API client secret
-
-### 3. Set Up Database Updates
-
-Since Vercel uses serverless functions, we need to set up a way to update the database periodically:
-
-1. Use a cron job service like cron-job.org to call the `/api/update_locations` endpoint every few minutes
-2. Set up the cron job to hit: `https://your-vercel-domain.vercel.app/api/update_locations`
-
-### 4. Local Development
-
-For local development:
 ```
+├── frontend/                # React frontend
+│   ├── src/                 # React source code
+│   │   ├── components/      # React components
+│   │   ├── hooks/           # Custom React hooks
+│   │   └── config/          # Configuration files
+│   └── public/              # Static assets
+├── backend/                 # Python Flask backend
+│   ├── api/                 # API endpoints
+│   └── templates/           # Backend templates (if any)
+└── shared/                  # Shared configuration
+```
+
+## Setup & Development
+
+### Prerequisites
+
+- Node.js 16+ and npm
+- Python 3.8+
+- 42 API credentials
+
+### Environment Variables
+
+Create a `.env` file in the project root with:
+
+```
+CLIENT_ID=your_42_api_client_id
+CLIENT_SECRET=your_42_api_client_secret
+REDIRECT_URL=http://localhost:5000/callback
+CRON_SECRET=your_secret_for_cron_jobs
+```
+
+### Backend Setup
+
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 python app.py
 ```
 
-The application should be accessible at http://localhost:5000
+The backend will start on http://localhost:5000
 
-### 5. Database Considerations
+### Frontend Setup
 
-The Vercel deployment uses SQLite in the `/tmp` directory, which has some limitations:
-- Data may be cleared periodically by Vercel
-- The database is not shared between function invocations
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-For a more persistent solution, consider migrating to a managed database service like:
-- Vercel Postgres
-- MongoDB Atlas
-- Supabase
+The frontend will start on http://localhost:5173
+
+## Deployment
+
+This project is configured for deployment on Vercel:
+
+1. Connect your GitHub repository to Vercel
+2. Add the environment variables on Vercel
+3. Deploy the project
 
 ## Features
 
-- Real-time seating map for 42 campuses
-- Multiple floor support
-- Integration with 42 API
+- Real-time seating map with Socket.IO (disabled on Vercel)
+- Campus floor selection
+- User images from 42 API
+- Automatic data refresh
+- Cron endpoint for scheduled updates
+
+## API Endpoints
+
+- `/api/locations` - Get current locations data
+- `/api/cron/update` - Trigger data update (secured with CRON_SECRET)
+- `/api/status` - Check API status
+- `/api/health` - Detailed health check
+
+## Cron Jobs
+
+For Vercel deployment, set up an external cron service (like cron-job.org) to hit:
+
+```
+https://your-domain.vercel.app/api/cron/update?secret=your_cron_secret
+```
+
+## License
+
+This project is proprietary and confidential.
 

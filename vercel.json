@@ -2,14 +2,29 @@
   "version": 2,
   "builds": [
     {
-      "src": "app.py",
+      "src": "frontend/dist/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "backend/app.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
+      "src": "/api/(.*)",
+      "dest": "backend/app.py"
+    },
+    {
+      "src": "/socket.io/(.*)",
+      "dest": "backend/app.py"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/app.py"
+      "dest": "frontend/dist/$1"
     }
-  ]
+  ],
+  "env": {
+    "PYTHONPATH": "."
+  }
 } 

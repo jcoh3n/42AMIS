@@ -1,0 +1,362 @@
+import flask
+from flask import Flask, render_template, request, redirect, session, jsonify, send_from_directory
+from flask_socketio import SocketIO
+from flask_cors import CORS
+import requests
+import os
+from dotenv import load_dotenv
+import time
+import sqlite3 # Import sqlite3
+import json
+
+load_dotenv()
+
+app = Flask(__name__)
+app.secret_key = os.urandom(24)
+
+# Apply CORS
+CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+# Check if we're running on Vercel
+VERCEL_ENV = os.environ.get('VERCEL_ENV')
+IS_VERCEL = VERCEL_ENV is not None
+
+# Only initialize SocketIO if not on Vercel, as it's not fully compatible with serverless
+if not IS_VERCEL:
+    socketio = SocketIO(app, cors_allowed_origins="*")
+else:
+    socketio = None
+    print("[STARTUP] Running on Vercel serverless environment - SocketIO disabled")
+
+# For Vercel, use /tmp for database since the filesystem is read-only except for /tmp
+DATABASE_FILE = '/tmp/local_cache.sqlite' if IS_VERCEL else 'local_cache.sqlite'
+print(f"[STARTUP] Database file location: {DATABASE_FILE}")
+
+# --- Database Setup ---
+def get_db():
+    db = getattr(flask, '_database', None)
+    if db is None:
+        db = flask._database = sqlite3.connect(DATABASE_FILE)
+        db.row_factory = sqlite3.Row # Access columns by name
+    return db
+
+@app.teardown_appcontext
+def close_connection(exception):
+    db = getattr(flask, '_database', None)
+    if db is not None:
+        db.close()
+
+def init_db():
+    """Initialize the SQLite database with required tables if they don't exist."""
+    conn = sqlite3.connect(DATABASE_FILE)
+    c = conn.cursor()
+    
+    # Create locations table
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS locations (
+        id INTEGER PRIMARY KEY,
+        host TEXT,
+        user_id INTEGER NULL,
+        user_login TEXT NULL,
+        user_display_name TEXT NULL,
+        user_image_url TEXT NULL,
+        floor TEXT,
+        row INTEGER,
+        col INTEGER,
+        is_occupied BOOLEAN,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+# Call init_db() once when the app starts if the DB file doesn't exist or is empty.
+# More robust checks might be needed for production.
+# For simplicity, we can call it manually or ensure schema.sql is run once.
+# For now, let's ensure the table exists or create it.
+
+def create_locations_table_if_not_exists():
+    db = sqlite3.connect(DATABASE_FILE)
+    cursor = db.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS locations (
+        host TEXT NOT NULL,
+        user_login TEXT NOT NULL,
+        user_displayname TEXT,
+        user_image_micro TEXT,
+        campus_id INTEGER NOT NULL,
+        begin_at TEXT NOT NULL, 
+        last_api_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (host, user_login, campus_id, begin_at)
+    );
+    """)
+    # Index for faster queries on campus_id
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_campus_id ON locations (campus_id);")
+    db.commit()
+    db.close()
+    print("Locations table checked/created.")
+
+create_locations_table_if_not_exists()
+
+# --- End Database Setup ---
+
+
+# 42 API configuration
+CLIENT_ID = os.getenv('CLIENT_ID')
+CLIENT_SECRET = os.getenv('CLIENT_SECRET') # Make sure CLIENT_SECRET is in your .env
+API_URL = 'https://api.intra.42.fr/v2'
+AUTH_URL = 'https://api.intra.42.fr/oauth/authorize'
+TOKEN_URL = 'https://api.intra.42.fr/oauth/token'
+
+# Use the REDIRECT_URL from .env file
+REDIRECT_URI = os.getenv('REDIRECT_URL', 'http://localhost:5000/callback')
+print(f"[STARTUP] REDIRECT_URI configured as: {REDIRECT_URI}")
+print(f"[STARTUP] Environment variables: REDIRECT_URL={os.getenv('REDIRECT_URL')}, VERCEL_ENV={VERCEL_ENV}")
+
+@app.route('/')
+def index():
+    if 'access_token' not in session:
+        return redirect('/login')
+    return redirect('http://localhost:5173') # Redirect to React frontend in development
+
+@app.route('/login')
+def login():
+    auth_url = f"{AUTH_URL}?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&scope=public"
+    print(f"[LOGIN] Redirecting to: {auth_url}")
+    return redirect(auth_url)
+
+@app.route('/callback')
+def callback():
+    code = request.args.get('code')
+    print(f"--- In /callback ---")
+    print(f"Received code: {code}")
+    print(f"Using CLIENT_ID: {CLIENT_ID}")
+    print(f"Using REDIRECT_URI: {REDIRECT_URI}")
+    print(f"Callback URL as seen by request: {request.base_url}")
+    print(f"Full request URL: {request.url}")
+    print(f"Request headers: {dict(request.headers)}")
+    
+    if not code:
+        print("Callback error: No code received from 42 API.")
+        return 'Error: No code received', 400
+
+    data = {
+        'grant_type': 'authorization_code',
+        'client_id': CLIENT_ID,
+        'client_secret': CLIENT_SECRET, # Use the loaded client secret
+        'code': code,
+        'redirect_uri': REDIRECT_URI
+    }
+    
+    response = requests.post(TOKEN_URL, data=data)
+    if response.status_code != 200:
+        print(f"Error exchanging code for token. Status: {response.status_code}")
+        print(f"Response headers: {response.headers}")
+        try:
+            print(f"Response JSON: {response.json()}")
+        except requests.exceptions.JSONDecodeError:
+            print(f"Response text: {response.text}")
+        return 'Error: Failed to get access token', 400
+
+    session['access_token'] = response.json()['access_token']
+    return redirect('http://localhost:5173') # Redirect to React frontend in development
+
+@app.route('/api/locations')
+def get_locations_from_db(): # Renamed function
+    campus_id_filter = request.args.get('campus_id', 1, type=int) # Default to campus 1 if not specified
+    
+    try:
+        # For now, we will implement querying the local DB here.
+        # This function will be called by the frontend.
+        # The actual 42 API calls will be moved to a separate updater script.
+        
+        db = sqlite3.connect(DATABASE_FILE)
+        db.row_factory = sqlite3.Row
+        cursor = db.cursor()
+        
+        # First check if we have any data in the table
+        cursor.execute("SELECT COUNT(*) FROM locations WHERE campus_id = ?", (campus_id_filter,))
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            print(f"Backend: No locations found in DB for campus {campus_id_filter}. Trying to update data.")
+            # Try to update data directly if we're missing data (for serverless where cron may not run)
+            try:
+                from updater import get_access_token, update_campus_locations
+                token = get_access_token()
+                if token:
+                    update_campus_locations(campus_id_filter, token)
+                    print(f"Backend: Emergency data update for campus {campus_id_filter} completed.")
+                    # Now try to fetch data again after the update
+                    cursor.execute("""
+                        SELECT host, user_login, user_displayname, user_image_micro, campus_id, begin_at 
+                        FROM locations 
+                        WHERE campus_id = ? 
+                        ORDER BY begin_at DESC
+                    """, (campus_id_filter,))
+                else:
+                    print(f"Backend: Failed to get token for emergency update.")
+            except Exception as e:
+                print(f"Backend Error: Failed to perform emergency data update: {str(e)}")
+        else:
+            # Query the local database
+            cursor.execute("""
+                SELECT host, user_login, user_displayname, user_image_micro, campus_id, begin_at 
+                FROM locations 
+                WHERE campus_id = ? 
+                ORDER BY begin_at DESC
+            """, (campus_id_filter,))
+        
+        rows = cursor.fetchall()
+        db.close()
+        
+        # Convert rows to list of dicts to mimic original API response structure (partially)
+        processed_locations = []
+        for row in rows:
+            processed_locations.append({
+                "host": row["host"],
+                "user": {
+                    "login": row["user_login"],
+                    "displayname": row["user_displayname"],
+                    "image": { "versions": { "micro": row["user_image_micro"] } }
+                },
+                "begin_at": row["begin_at"],
+                "campus_id": row["campus_id"]
+                # Add other fields if your frontend uses them, like end_at, id, primary
+            })
+        
+        print(f"Backend: Returning {len(processed_locations)} locations from DB for campus {campus_id_filter}")
+        
+        # Set Cache-Control header to prevent browser caching
+        response = jsonify(processed_locations)
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+        
+    except sqlite3.Error as e:
+        print(f"Backend Database Error: {str(e)}")
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    except Exception as e:
+        print(f"Backend Server Error: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+# For Vercel serverless deployment
+@app.route('/_vercel/static/<path:filename>')
+def vercel_static(filename):
+    return app.send_static_file(filename)
+
+# Add a route to manually trigger data update (useful for serverless environment)
+@app.route('/api/update_data', methods=['GET'])
+def update_data_endpoint():
+    try:
+        # Check if there's an access token in the session or as a parameter
+        token = session.get('access_token') or request.args.get('token')
+        if not token:
+            return jsonify({"status": "error", "message": "No access token available"}), 401
+            
+        # Get campus_id from request or default to 1
+        campus_id = request.args.get('campus_id', 1, type=int)
+        
+        # Here you would normally run the updater logic
+        # For example, you might call a function that fetches from 42 API and updates the DB
+        # For demonstration, we'll just return a success message
+        
+        print(f"[UPDATE] Manual update triggered for campus_id={campus_id}")
+        return jsonify({"status": "success", "message": "Data update was triggered"})
+    except Exception as e:
+        print(f"[ERROR] Update error: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# Special endpoint for automated updates that doesn't require authentication
+# This can be called by cron services like cron-job.org or GitHub Actions
+@app.route('/api/cron/update', methods=['GET'])
+def cron_update():
+    """Endpoint for cron jobs to trigger location updates."""
+    # Check secret key
+    secret = request.args.get('secret')
+    if secret != os.getenv('CRON_SECRET'):
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
+    
+    # This would call the updater logic
+    # For now, just return success
+    return jsonify({'status': 'success', 'message': 'Update scheduled'})
+
+# Add a simple status/health endpoint
+@app.route('/api/status', methods=['GET'])
+def api_status():
+    """Simple endpoint to check if API is online."""
+    return jsonify({
+        'status': 'online',
+        'version': '1.0.0'
+    })
+
+# Add a health check endpoint for debugging
+@app.route('/api/health')
+def health_check():
+    """Detailed health check."""
+    try:
+        # Check if database exists and can be connected to
+        db = sqlite3.connect(DATABASE_FILE)
+        db.row_factory = sqlite3.Row
+        cursor = db.cursor()
+        
+        # Check if locations table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='locations'")
+        table_exists = cursor.fetchone() is not None
+        
+        # Get location counts
+        locations_count = 0
+        if table_exists:
+            cursor.execute("SELECT COUNT(*) FROM locations")
+            locations_count = cursor.fetchone()[0]
+            
+            # Get campus breakdown
+            cursor.execute("SELECT campus_id, COUNT(*) as count FROM locations GROUP BY campus_id")
+            campus_breakdown = {row['campus_id']: row['count'] for row in cursor.fetchall()}
+        else:
+            campus_breakdown = {}
+        
+        db.close()
+        
+        # Version info
+        version_info = {
+            "app_version": "1.0.1",  # Update this as needed
+            "last_updated": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+        }
+        
+        # System info
+        system_info = {
+            "vercel_env": VERCEL_ENV,
+            "is_vercel": IS_VERCEL,
+            "database_file": DATABASE_FILE,
+            "socketio_enabled": socketio is not None
+        }
+        
+        return jsonify({
+            "status": "healthy",
+            "database": {
+                "connected": True,
+                "locations_table_exists": table_exists,
+                "locations_count": locations_count,
+                "campus_breakdown": campus_breakdown
+            },
+            "version": version_info,
+            "system": system_info
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e)
+        }), 500
+
+# Required for Vercel serverless functions
+if IS_VERCEL:
+    # Return the Flask app for serverless use
+    app_handler = app
+else:
+    # For local development, run with SocketIO
+    if __name__ == '__main__':
+        socketio.run(app, debug=True, port=5000) 

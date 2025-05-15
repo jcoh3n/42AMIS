@@ -1,0 +1,85 @@
+# 42AMIS Complete Rebuild Configuration
+# Full rebuild with React frontend and Python backend
+
+# Source code organization
+project:
+  structure:
+    frontend: "frontend"     # React/Vite application
+    backend: "backend"       # Python Flask backend 
+    api: "backend/api"       # API endpoints
+    static: "frontend/public" # Static assets
+    shared: "shared"         # Shared configuration
+
+# Preserve important files
+preserve:
+  - ".github/**/*"           # GitHub Actions and workflows
+  - ".env"                   # Environment variables
+  - "vercel.json"            # Vercel configuration
+  - "requirements.txt"       # Python dependencies (will be moved)
+  - "schema.sql"             # Database schema
+  - "api42.txt"              # API documentation
+
+# Copy existing functionality
+copy:
+  - source: "app.py"
+    target: "backend/app.py"
+  - source: "updater.py"
+    target: "backend/updater.py" 
+  - source: "api/**/*"
+    target: "backend/api/"
+  - source: "static/**/*"
+    target: "frontend/public/"
+  - source: "templates/index.html" 
+    transform: "extract-js-to-react"
+    target: "frontend/src/"
+
+# React/Vite configuration
+frontend:
+  framework: "vite"
+  language: "javascript"
+  tailwind: true
+  components:
+    - "App"
+    - "FloorSelector"
+    - "SeatingMap"
+    - "Seat"
+    - "Legend"
+  hooks:
+    - "useSocket"
+    - "useLocations"
+  configs:
+    - "campusLayout"
+  dependencies:
+    - "react"
+    - "react-dom"
+    - "socket.io-client"
+    - "tailwindcss"
+
+# Backend configuration  
+backend:
+  framework: "flask"
+  routes:
+    - "/api/locations"
+    - "/socket.io"
+  dependencies:
+    - "flask"
+    - "flask-socketio"
+    - "requests"
+    - "python-dotenv"
+
+# Development environment
+dev:
+  frontend_port: 5173
+  backend_port: 5000 
+  proxy: true
+
+# Socket.IO configuration
+socket_io:
+  enabled: true
+  vercel_disabled: true
+
+# Build configuration
+build:
+  frontend_output: "dist"
+  backend_output: "."
+  vercel_output: "." 

@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .seat {
+    @apply w-8 h-8 rounded border flex items-center justify-center text-xs font-medium transition-colors duration-300;
+  }
+  
+  .seat-available {
+    @apply bg-seat-available text-white border-green-600 hover:bg-green-600;
+  }
+  
+  .seat-occupied {
+    @apply bg-seat-occupied text-white border-red-600 hover:bg-red-600;
+  }
+  
+  .seat-unavailable {
+    @apply bg-seat-unavailable text-white border-gray-600 hover:bg-gray-700;
+  }
+
+  .floor-btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-colors duration-300;
+  }
+  
+  .floor-btn-active {
+    @apply bg-ft-blue text-white;
+  }
+  
+  .floor-btn-inactive {
+    @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
+  }
+}
+
+/* Custom styles for seats */
+.seat {
+  width: 25px;
+  height: 25px;
+  margin: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 8px;
+  overflow: hidden;
+}
+
+.seat img {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.seat:hover {
+  transform: scale(1.05);
+}
+
+.seat-occupied {
+  @apply bg-green-500 text-white;
+}
+
+.seat-empty {
+  @apply bg-gray-300;
+} 
