@@ -37,7 +37,7 @@
         }
     </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-800 text-white min-h-screen" {% if is_vercel %}data-vercel-env="true"{% endif %}>
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-3xl font-bold text-center mb-8">42 Seating Map</h1>
 
@@ -70,13 +70,21 @@
         let socket = null;
         
         try {
-            // Check if io object exists before instantiating socket
-            if (typeof io !== 'undefined') {
+            // Check if io object exists AND if we're not in a Vercel environment
+            // We can detect Vercel by checking the URL or a server-provided flag
+            const isVercel = window.location.hostname.includes('vercel.app') || 
+                             document.body.hasAttribute('data-vercel-env');
+            
+            if (typeof io !== 'undefined' && !isVercel) {
                 socket = io();
                 socketAvailable = true;
                 console.log("Socket.IO is available and initialized");
             } else {
-                console.log("Socket.IO is not available - running in serverless mode");
+                if (isVercel) {
+                    console.log("Running on Vercel - Socket.IO intentionally disabled");
+                } else {
+                    console.log("Socket.IO is not available - running in serverless mode");
+                }
             }
         } catch (error) {
             console.log("Error initializing Socket.IO:", error);

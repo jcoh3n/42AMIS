@@ -96,14 +96,14 @@ print(f"[STARTUP] Environment variables: REDIRECT_URL={os.getenv('REDIRECT_URL')
 def index():
     if 'access_token' not in session:
         return redirect('/login')
-    return render_template('index.html')
+    return render_template('index.html', is_vercel=IS_VERCEL)
 
 @app.route('/admin')
 def admin():
     # Simple access control - you might want something more secure
     if 'access_token' not in session:
         return redirect('/login')
-    return render_template('admin.html')
+    return render_template('admin.html', is_vercel=IS_VERCEL)
 
 @app.route('/login')
 def login():
